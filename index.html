@@ -61,4 +61,461 @@
         .msg.guess { color: #333; background-color: #f9f9f9; }
         .chat-input-area { display: flex; padding: 10px; border-top: 1px solid #eee; }
         .chat-input-area input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px 0 0 5px; outline: none; }
-        .chat-input-area button { padding: 10px 15px; background-color: #2
+        .chat-input-area button { padding: 10px 15px; background-color: #2980b9; color: white; border: none; border-radius: 0 5px 5px 0; font-weight: bold; }
+
+        /* 彈出視窗系列 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background-color: #fff; padding: 25px; border-radius: 15px; text-align: center; width: 90%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .modal-content input { width: 100%; padding: 12px; font-size: 18px; text-align: center; border: 2px solid #bdc3c7; border-radius: 8px; margin-bottom: 15px; outline: none; }
+        .hidden { display: none !important; }
+
+        /* 結算畫面專用 */
+        .result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; font-size: 18px; }
+        .result-item:first-child { font-size: 24px; font-weight: bold; color: #d35400; background: #fff8e1; border-radius: 8px; border: none; margin-bottom: 5px;}
+
+        /* 手機 RWD 排版 */
+        @media (max-width: 800px) {
+            #game-container { flex-direction: column; padding: 5px; gap: 5px; }
+            .sidebar:not(.chat-area) { width: 100%; flex-direction: row; height: 70px; }
+            .sidebar-header { display: none; }
+            .player-list { flex-direction: row; overflow-x: auto; overflow-y: hidden; align-items: center; }
+            .player-item { min-width: 120px; height: 50px; }
+            .main-area { height: 50vh; flex-grow: 0; }
+            .top-bar { padding: 5px 10px; }
+            .timer, .round-info { font-size: 14px; width: auto;}
+            .word-hint { font-size: 16px; }
+            .chat-area { width: 100%; flex-grow: 1; height: 0; }
+        }
+    </style>
+</head>
+<body onload="initApp()">
+
+<div id="lobby-container">
+    <h1>🎨 網路連線大廳</h1>
+    
+    <div class="setting-group">
+        <label>你的遊戲暱稱：</label>
+        <input type="text" id="player-name" placeholder="輸入暱稱" value="玩家">
+    </div>
+    
+    <div class="host-box">
+        <div class="setting-group">
+            <label>設定回合數 (僅房主有效)：</label>
+            <select id="setting-rounds">
+                <option value="2">2 回合 (快速體驗)</option>
+                <option value="3" selected>3 回合 (標準長度)</option>
+                <option value="5">5 回合 (深度遊玩)</option>
+            </select>
+        </div>
+        <button class="btn btn-blue" onclick="createRoom()">👑 建立新房間</button>
+    </div>
+
+    <div class="divider"></div>
+    
+    <div class="setting-group">
+        <label>加入朋友的房間：</label>
+        <input type="text" id="join-room-id" placeholder="輸入朋友給的房間代碼">
+    </div>
+    <button class="btn btn-green" onclick="joinRoom()">🔗 點我加入</button>
+</div>
+
+<div id="loading-modal" class="modal-overlay hidden">
+    <div class="modal-content"><h2 id="loading-text" style="color:#2980b9;">連線中，請稍候...</h2></div>
+</div>
+
+<div id="game-container">
+    <div class="sidebar">
+        <div class="sidebar-header">玩家名單</div>
+        <div class="player-list" id="player-list-ui"></div>
+        <div style="padding:10px;">
+            <button class="btn btn-blue" id="btn-start-game" style="display:none;" onclick="startGameHost()">🚀 開始遊戲</button>
+            <div class="room-id-display" onclick="copyRoomId()" id="room-id-ui">代碼: ---</div>
+        </div>
+    </div>
+
+    <div class="main-area">
+        <div class="top-bar">
+            <div class="timer">⏱️ <span id="game-timer">--</span></div>
+            <div class="word-hint" id="word-display">等待房主開始...</div>
+            <div class="round-info" id="round-display">回合 - / -</div>
+        </div>
+
+        <div class="canvas-container" id="canvas-wrapper">
+            <div id="canvas-lock-overlay"></div>
+            <canvas id="drawing-board" width="800" height="600"></canvas>
+        </div>
+
+        <div class="toolbar" id="game-toolbar">
+            <div class="color-btn" style="background: #000000;" onclick="changeColor('#000000')"></div>
+            <div class="color-btn" style="background: #e74c3c;" onclick="changeColor('#e74c3c')"></div>
+            <div class="color-btn" style="background: #3498db;" onclick="changeColor('#3498db')"></div>
+            <div class="color-btn" style="background: #f1c40f;" onclick="changeColor('#f1c40f')"></div>
+            <div class="color-btn" style="background: #2ecc71;" onclick="changeColor('#2ecc71')"></div>
+            <div class="color-btn" style="background: #ffffff; border-color: #999;" onclick="changeColor('#ffffff')" title="橡皮擦"></div>
+            <button class="tool-btn" onclick="requestClearCanvas()">🗑️ 清空</button>
+        </div>
+    </div>
+
+    <div class="sidebar chat-area">
+        <div class="sidebar-header">聊天與猜測</div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="輸入答案..." onkeypress="handleChatKey(event)">
+            <button onclick="submitChat()">送出</button>
+        </div>
+    </div>
+</div>
+
+<div id="prompt-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h2 style="color:#2980b9;">輪到你出題！</h2>
+        <p>請在 <span id="modal-timer" style="color:#e74c3c; font-weight:bold; font-size: 24px;">30</span> 秒內輸入</p>
+        <input type="text" id="custom-word-input" placeholder="例如：蘋果、皮卡丘" autocomplete="off">
+        <button class="btn btn-green" onclick="submitWord()">確認出題</button>
+    </div>
+</div>
+
+<div id="results-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 450px;">
+        <h2 style="color:#f39c12; margin-bottom: 15px; font-size: 28px;">🏆 遊戲結算 🏆</h2>
+        <div id="results-list" style="margin-bottom: 25px; text-align: left;">
+            </div>
+        <button class="btn btn-blue" onclick="location.reload()">🔄 回到大廳再來一局</button>
+    </div>
+</div>
+
+<script>
+    /* ================= 網路連線核心 (PeerJS) ================= */
+    let peer = null; let myId = ""; let myName = ""; let isHost = false;
+    
+    // 房主資料
+    let clientConnections = [];
+    let players = []; 
+    let gameState = { status: 'LOBBY', drawerIndex: 0, currentRound: 1, maxRounds: 3, currentWord: "", timeLeft: 60, drawTime: 60 };
+    let gameTimerInterval = null; let promptInterval = null;
+    let hostConnection = null;
+
+    function initApp() {
+        document.body.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+        document.getElementById('chat-messages').addEventListener('touchmove', function(e) { e.stopPropagation(); }, false);
+        document.querySelector('.player-list').addEventListener('touchmove', function(e) { e.stopPropagation(); }, false);
+    }
+
+    // 建立房間
+    function createRoom() {
+        myName = document.getElementById('player-name').value.trim() || "房主";
+        gameState.maxRounds = parseInt(document.getElementById('setting-rounds').value) || 3;
+        showLoading("建立房間中...");
+        
+        const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+        peer = new Peer('GARTIC-' + roomCode);
+
+        peer.on('open', (id) => {
+            isHost = true; myId = id;
+            players.push({ id: myId, name: myName, score: 0, hasGuessed: false, isDrawer: false });
+            enterGameScreen(roomCode);
+            document.getElementById('btn-start-game').style.display = 'block';
+            addChat('系統', '房間建立成功！請將代碼分享給朋友。', 'system');
+            updatePlayersUI();
+        });
+
+        peer.on('connection', (conn) => {
+            conn.on('open', () => {
+                clientConnections.push(conn);
+                conn.on('data', (data) => handleDataFromClient(conn, data));
+            });
+            conn.on('close', () => {
+                players = players.filter(p => p.id !== conn.peer);
+                clientConnections = clientConnections.filter(c => c.peer !== conn.peer);
+                broadcast({ type: 'sync_players', players: players });
+                updatePlayersUI();
+            });
+        });
+    }
+
+    // 加入房間
+    function joinRoom() {
+        myName = document.getElementById('player-name').value.trim() || "玩家";
+        let roomCode = document.getElementById('join-room-id').value.trim().toUpperCase();
+        if(!roomCode) return alert('請輸入房間代碼！');
+        
+        showLoading("連線至房間...");
+        peer = new Peer(); 
+        
+        peer.on('open', (id) => {
+            myId = id; isHost = false;
+            hostConnection = peer.connect('GARTIC-' + roomCode);
+            hostConnection.on('open', () => {
+                enterGameScreen(roomCode);
+                hostConnection.send({ type: 'join', id: myId, name: myName });
+            });
+            hostConnection.on('data', (data) => handleDataFromHost(data));
+            hostConnection.on('close', () => { alert("已與房主斷線！"); location.reload(); });
+        });
+        peer.on('error', () => { hideLoading(); alert("連線失敗，請確認代碼。"); });
+    }
+
+    /* ================= 房主邏輯 ================= */
+    function handleDataFromClient(conn, data) {
+        if (data.type === 'join') {
+            players.push({ id: data.id, name: data.name, score: 0, hasGuessed: false, isDrawer: false });
+            broadcast({ type: 'sync_players', players: players });
+            broadcast({ type: 'chat', sender: '系統', text: `${data.name} 加入了房間！`, msgType: 'system' });
+            updatePlayersUI();
+        }
+        else if (data.type === 'chat') handleChatAttempt(data.senderId, data.text);
+        else if (data.type === 'draw') {
+            clientConnections.forEach(c => { if(c.peer !== conn.peer) c.send(data); });
+            executeDrawLine(data);
+        }
+        else if (data.type === 'clear_canvas') { broadcast({ type: 'clear_canvas' }); clearCanvasLocal(); }
+        else if (data.type === 'submit_word') { gameState.currentWord = data.word; startGameTimer(); }
+    }
+
+    function broadcast(data) {
+        clientConnections.forEach(conn => conn.send(data));
+        if(data.type === 'chat') addChat(data.sender, data.text, data.msgType);
+    }
+
+    /* ================= 遊戲流程 (含回合控制) ================= */
+    function startGameHost() {
+        if(players.length < 2) return alert("至少需要 2 名玩家才能開始！");
+        document.getElementById('btn-start-game').style.display = 'none';
+        
+        gameState.currentRound = 1;
+        gameState.drawerIndex = 0;
+        broadcast({ type: 'game_start', maxRounds: gameState.maxRounds });
+        
+        startRoundTurn();
+    }
+
+    function startRoundTurn() {
+        clearInterval(gameTimerInterval);
+        broadcast({ type: 'clear_canvas' }); clearCanvasLocal();
+        players.forEach(p => { p.hasGuessed = false; p.isDrawer = false; });
+        
+        let currentDrawer = players[gameState.drawerIndex];
+        currentDrawer.isDrawer = true;
+        
+        // 同步回合數給所有人
+        broadcast({ type: 'sync_round', current: gameState.currentRound, max: gameState.maxRounds });
+        document.getElementById('round-display').innerText = `回合 ${gameState.currentRound} / ${gameState.maxRounds}`;
+
+        broadcast({ type: 'sync_players', players: players });
+        broadcast({ type: 'chat', sender: '系統', text: `▼ 輪到【${currentDrawer.name}】出題！`, msgType: 'system' });
+        updatePlayersUI();
+
+        if (currentDrawer.id === myId) openPromptModal();
+        else {
+            broadcast({ type: 'prompt_request', targetId: currentDrawer.id });
+            broadcast({ type: 'sync_word', text: "等待出題中..." });
+            document.getElementById('word-display').innerText = "等待出題中...";
+        }
+        setToolLockStatus(currentDrawer.id !== myId);
+    }
+
+    function startGameTimer() {
+        gameState.timeLeft = gameState.drawTime;
+        let maskedWord = ""; for(let i=0; i<gameState.currentWord.length; i++) maskedWord += "_ ";
+        
+        broadcast({ type: 'sync_word_start', masked: maskedWord, time: gameState.timeLeft });
+        
+        if(players[gameState.drawerIndex].id === myId) {
+            document.getElementById('word-display').innerText = `${gameState.currentWord} (你作畫)`;
+        } else { document.getElementById('word-display').innerText = maskedWord; }
+
+        gameTimerInterval = setInterval(() => {
+            gameState.timeLeft--;
+            broadcast({ type: 'sync_time', time: gameState.timeLeft });
+            document.getElementById('game-timer').innerText = gameState.timeLeft;
+            if (gameState.timeLeft <= 0) endRoundTurn();
+        }, 1000);
+    }
+
+    function endRoundTurn() {
+        clearInterval(gameTimerInterval);
+        broadcast({ type: 'chat', sender: '系統', text: `時間到！正確答案是：【${gameState.currentWord}】`, msgType: 'info' });
+        
+        // 進入下一個作畫者
+        gameState.drawerIndex++;
+        
+        // 若所有人都畫過一輪了，回合數+1
+        if (gameState.drawerIndex >= players.length) {
+            gameState.drawerIndex = 0;
+            gameState.currentRound++;
+        }
+        
+        // 檢查是否超過總回合數 -> 進入結算畫面
+        if (gameState.currentRound > gameState.maxRounds) {
+            setTimeout(triggerGameOver, 3000);
+        } else {
+            setTimeout(startRoundTurn, 4000); 
+        }
+    }
+
+    function triggerGameOver() {
+        let sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+        broadcast({ type: 'game_over', players: sortedPlayers });
+        showGameOverUI(sortedPlayers);
+    }
+
+    function handleChatAttempt(senderId, text) {
+        let sender = players.find(p => p.id === senderId);
+        let drawer = players[gameState.drawerIndex];
+
+        if (senderId !== drawer.id && !sender.hasGuessed && text === gameState.currentWord && gameState.timeLeft > 0) {
+            sender.hasGuessed = true;
+            let timeBonus = Math.floor((gameState.timeLeft / gameState.drawTime) * 10) + 3;
+            sender.score += timeBonus; drawer.score += 4; 
+
+            broadcast({ type: 'chat', sender: '系統', text: `🎉 ${sender.name} 猜對了！`, msgType: 'correct' });
+            broadcast({ type: 'sync_players', players: players }); updatePlayersUI();
+            
+            if(players.every(p => p.isDrawer || p.hasGuessed)) {
+                clearInterval(gameTimerInterval); setTimeout(endRoundTurn, 2000);
+            }
+        } else { broadcast({ type: 'chat', sender: sender.name, text: text, msgType: 'guess' }); }
+    }
+
+    /* ================= 客戶端邏輯 ================= */
+    function handleDataFromHost(data) {
+        if (data.type === 'sync_players') {
+            players = data.players; updatePlayersUI();
+            let myPlayer = players.find(p => p.id === myId);
+            if(myPlayer) setToolLockStatus(!myPlayer.isDrawer);
+        }
+        else if (data.type === 'chat') addChat(data.sender, data.text, data.msgType);
+        else if (data.type === 'sync_word') document.getElementById('word-display').innerText = data.text;
+        else if (data.type === 'sync_round') document.getElementById('round-display').innerText = `回合 ${data.current} / ${data.max}`;
+        else if (data.type === 'game_start') document.getElementById('round-display').innerText = `回合 1 / ${data.maxRounds}`;
+        else if (data.type === 'game_over') showGameOverUI(data.players);
+        else if (data.type === 'sync_word_start') {
+            document.getElementById('game-timer').innerText = data.time;
+            let myPlayer = players.find(p => p.id === myId);
+            if(myPlayer && !myPlayer.isDrawer) document.getElementById('word-display').innerText = data.masked;
+        }
+        else if (data.type === 'sync_time') document.getElementById('game-timer').innerText = data.time;
+        else if (data.type === 'draw') executeDrawLine(data);
+        else if (data.type === 'clear_canvas') clearCanvasLocal();
+        else if (data.type === 'prompt_request') if (data.targetId === myId) openPromptModal();
+    }
+
+    /* ================= UI 介面與結算 ================= */
+    function showGameOverUI(sortedPlayers) {
+        document.getElementById('results-modal').classList.remove('hidden');
+        let listHTML = "";
+        const medals = ['🥇', '🥈', '🥉'];
+        sortedPlayers.forEach((p, index) => {
+            let medal = index < 3 ? medals[index] : '🏅';
+            listHTML += `<div class="result-item">
+                            <div>${medal} <b>${p.name}</b></div>
+                            <div style="font-weight:bold;">${p.score} 分</div>
+                         </div>`;
+        });
+        document.getElementById('results-list').innerHTML = listHTML;
+    }
+
+    function showLoading(msg) { document.getElementById('loading-text').innerText = msg; document.getElementById('loading-modal').classList.remove('hidden'); }
+    function hideLoading() { document.getElementById('loading-modal').classList.add('hidden'); }
+    function enterGameScreen(code) {
+        hideLoading(); document.getElementById('lobby-container').classList.add('hidden');
+        document.getElementById('game-container').style.display = 'flex';
+        document.getElementById('room-id-ui').innerText = "房號: " + code.replace('GARTIC-', '');
+    }
+    function updatePlayersUI() {
+        const container = document.getElementById('player-list-ui'); container.innerHTML = '';
+        let sorted = [...players].sort((a, b) => b.score - a.score);
+        sorted.forEach((p, idx) => {
+            let cls = "player-item" + (p.isDrawer ? " drawer" : "") + (p.hasGuessed ? " guessed" : "");
+            container.innerHTML += `<div class="${cls}"><div class="player-avatar">${idx+1}</div>
+            <div class="player-info"><div class="player-name">${p.name}</div><div class="player-score">${p.score} pts</div></div></div>`;
+        });
+    }
+    function copyRoomId() {
+        let code = document.getElementById('room-id-ui').innerText.replace("房號: ", "");
+        navigator.clipboard.writeText(code); alert("已複製代碼：" + code);
+    }
+    function setToolLockStatus(locked) {
+        document.getElementById('canvas-lock-overlay').style.display = locked ? 'block' : 'none';
+        document.getElementById('game-toolbar').style.opacity = locked ? '0.3' : '1';
+    }
+
+    /* ================= 出題與聊天 ================= */
+    function openPromptModal() {
+        document.getElementById('prompt-modal').classList.remove('hidden');
+        document.getElementById('custom-word-input').value = "";
+        let timeLeft = 30; document.getElementById('modal-timer').innerText = timeLeft;
+        promptInterval = setInterval(() => {
+            timeLeft--; document.getElementById('modal-timer').innerText = timeLeft;
+            if (timeLeft <= 0) { document.getElementById('custom-word-input').value = "時鐘"; submitWord(); }
+        }, 1000);
+    }
+    function submitWord() {
+        let word = document.getElementById('custom-word-input').value.trim();
+        if (!word) return;
+        clearInterval(promptInterval); document.getElementById('prompt-modal').classList.add('hidden');
+        document.getElementById('word-display').innerText = `${word} (你作畫)`;
+        if (isHost) { gameState.currentWord = word; startGameTimer(); }
+        else { hostConnection.send({ type: 'submit_word', word: word }); }
+    }
+    function handleChatKey(e) { if (e.key === 'Enter') submitChat(); }
+    function submitChat() {
+        let input = document.getElementById('chat-input'); let text = input.value.trim();
+        if (!text) return; input.value = "";
+        if (isHost) handleChatAttempt(myId, text); else hostConnection.send({ type: 'chat', senderId: myId, text: text });
+    }
+    function addChat(sender, text, type) {
+        let box = document.getElementById('chat-messages');
+        box.innerHTML += `<div class="msg ${type}"><b>${sender}</b>：${text}</div>`;
+        box.scrollTop = box.scrollHeight;
+    }
+
+    /* ================= 同步畫板邏輯 ================= */
+    const canvas = document.getElementById('drawing-board'); const ctx = canvas.getContext('2d');
+    let isDrawing = false; let currentColor = '#000000'; let currentLineWidth = 5;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+    function changeColor(color) { currentColor = color; currentLineWidth = (color === '#ffffff') ? 30 : 5; }
+    function requestClearCanvas() {
+        let myPlayer = players.find(p => p.id === myId);
+        if(!myPlayer || !myPlayer.isDrawer) return;
+        clearCanvasLocal();
+        if(isHost) broadcast({ type: 'clear_canvas' }); else hostConnection.send({ type: 'clear_canvas' });
+    }
+    function clearCanvasLocal() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+
+    function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: (clientX - rect.left) * (canvas.width / rect.width), y: (clientY - rect.top) * (canvas.height / rect.height) };
+    }
+    function startDraw(e) {
+        let myPlayer = players.find(p => p.id === myId); if(!myPlayer || !myPlayer.isDrawer) return;
+        e.preventDefault(); isDrawing = true;
+        const pos = getPos(e); sendDrawData(pos.x, pos.y, true);
+    }
+    function draw(e) { if (!isDrawing) return; e.preventDefault(); const pos = getPos(e); sendDrawData(pos.x, pos.y, false); }
+    function endDraw(e) { if (isDrawing) { e.preventDefault(); isDrawing = false; } }
+
+    function sendDrawData(x, y, isStart) {
+        executeDrawLine({ x, y, color: currentColor, width: currentLineWidth, isStart });
+        let data = { type: 'draw', x, y, color: currentColor, width: currentLineWidth, isStart };
+        if (isHost) broadcast(data); else hostConnection.send(data);
+    }
+    let lastX = 0, lastY = 0;
+    function executeDrawLine(data) {
+        ctx.strokeStyle = data.color; ctx.lineWidth = data.width;
+        if (data.isStart) { ctx.beginPath(); ctx.moveTo(data.x, data.y); lastX = data.x; lastY = data.y; } 
+        else { ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(data.x, data.y); ctx.stroke(); lastX = data.x; lastY = data.y; }
+    }
+
+    canvas.addEventListener('mousedown', startDraw); canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', endDraw); canvas.addEventListener('mouseout', endDraw);
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    canvas.addEventListener('touchend', endDraw, { passive: false });
+</script>
+
+</body>
+</html>

@@ -14,13 +14,13 @@
         .setting-group { margin-bottom: 15px; text-align: left; font-weight: bold; color: #34495e; font-size: 14px; }
         .setting-group input, .setting-group select { width: 100%; padding: 10px; font-size: 16px; border-radius: 8px; border: 2px solid #bdc3c7; outline: none; margin-top: 5px; }
         
-        /* 房主專區 */
         #host-section { background: #f7f9fa; padding: 15px; border-radius: 10px; border: 1px solid #e1e8ed; margin-bottom: 15px; }
         
         .btn { width: 100%; padding: 12px; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s; color: white; margin-bottom: 5px; }
         .btn-blue { background-color: #3498db; } .btn-blue:hover { background-color: #2980b9; }
         .btn-green { background-color: #2ecc71; } .btn-green:hover { background-color: #27ae60; }
         .btn-orange { background-color: #e67e22; } .btn-orange:hover { background-color: #d35400; }
+        .btn-light { background-color: #ecf0f1; color: #2980b9; border: 1px solid #bdc3c7; } .btn-light:hover { background-color: #ddecfa; }
         .divider { margin: 15px 0; border-bottom: 2px dashed #eee; }
 
         #game-container { display: none; width: 100%; max-width: 1200px; height: 100%; max-height: 100dvh; background-color: #12283d; padding: 10px; gap: 10px; flex-direction: row; }
@@ -36,6 +36,10 @@
         .player-name { font-weight: bold; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .player-score { font-size: 11px; color: #666; font-weight: bold; }
         
+        /* 操作面板 (修復重點區) */
+        .action-panel { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; border-top: 1px solid #eee; }
+        .action-panel .btn { margin: 0; }
+
         .score-float { position: absolute; right: 10px; color: #2ecc71; font-weight: bold; font-size: 16px; animation: floatUp 1.2s ease-out forwards; z-index: 10; text-shadow: 1px 1px 0 #fff; }
         @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-25px); opacity: 0; } }
 
@@ -44,8 +48,6 @@
         .timer { font-size: 20px; font-weight: bold; color: #e74c3c; width: 60px; }
         .word-hint { font-size: 20px; font-weight: bold; letter-spacing: 2px; text-align: center; flex-grow: 1; color: #2c3e50; }
         .round-info { font-size: 14px; font-weight: bold; color: #7f8c8d; text-align: right; width: 90px; }
-        .room-id-display { font-size: 12px; background: #ecf0f1; padding: 5px 10px; border-radius: 5px; font-weight: bold; cursor: pointer; text-align: center; margin-top: 5px; border: 1px solid #bdc3c7; transition: 0.2s;}
-        .room-id-display:hover { background: #ddecfa; border-color: #3498db; color: #2980b9; }
         
         .canvas-container { background-color: #fff; border-radius: 10px; padding: 5px; position: relative; touch-action: none; display: flex; justify-content: center; align-items: center; width: 100%; flex-grow: 1; min-height: 0; }
         canvas { border: 1px solid #eee; border-radius: 5px; width: 100%; height: 100%; max-height: 100%; aspect-ratio: 4/3; cursor: crosshair; object-fit: fill; }
@@ -75,13 +77,19 @@
         .result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; font-size: 18px; }
         .result-item:first-child { font-size: 24px; font-weight: bold; color: #d35400; background: #fff8e1; border-radius: 8px; border: none; margin-bottom: 5px;}
 
+        /* 手機版修復 */
         @media (max-width: 800px) {
             #game-container { flex-direction: column; padding: 5px; gap: 5px; }
-            .sidebar:not(.chat-area) { width: 100%; flex-direction: row; height: 65px; flex-shrink: 0; }
+            .sidebar:not(.chat-area) { width: 100%; flex-direction: row; height: 60px; flex-shrink: 0; }
             .sidebar-header { display: none; }
             .player-list { flex-direction: row; overflow-x: auto; overflow-y: hidden; align-items: center; padding: 5px; }
-            .player-item { min-width: 110px; height: 50px; padding: 5px; }
-            .player-avatar { width: 28px; height: 28px; font-size: 12px; margin-right: 5px; }
+            .player-item { min-width: 110px; height: 45px; padding: 5px; }
+            .player-avatar { width: 25px; height: 25px; font-size: 12px; margin-right: 5px; }
+            
+            /* 將按鈕並排顯示 */
+            .action-panel { flex-direction: row; padding: 5px; align-items: center; border-top: none; border-left: 1px solid #eee; }
+            .action-panel .btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; height: 36px; line-height: 1; }
+
             .main-area { flex-grow: 1; min-height: 0; }
             .top-bar { padding: 5px; margin-bottom: 5px; }
             .timer, .round-info { font-size: 12px; width: auto;}
@@ -130,9 +138,10 @@
     <div class="sidebar">
         <div class="sidebar-header">玩家名單</div>
         <div class="player-list" id="player-list-ui"></div>
-        <div style="padding:10px;">
-            <button class="btn btn-orange" id="btn-start-game" style="display:none;" onclick="startGameHost()">🚀 房主點此開始</button>
-            <div class="room-id-display" onclick="copyInviteLink()" id="room-id-ui" title="點擊複製邀請連結">代碼: ---<br><small>(點擊複製邀請網址)</small></div>
+        
+        <div class="action-panel">
+            <button class="btn btn-orange" id="btn-start-game" style="display:none;" onclick="startGameHost()">🚀 開始遊戲</button>
+            <button class="btn btn-light" id="room-id-ui" onclick="copyInviteLink()">🔗 複製連結</button>
         </div>
     </div>
     <div class="main-area">
@@ -187,16 +196,14 @@
     let clientConnections = []; let players = []; 
     let gameState = { status: 'LOBBY', drawerIndex: 0, currentRound: 1, maxRounds: 3, currentWord: "", timeLeft: 60, drawTime: 60, isPlaying: false };
     let gameTimerInterval = null; let promptInterval = null; let hostConnection = null;
+    let currentRoomCode = "";
 
-    // 【新增功能 1】自動隨機題庫 (可自行擴充)
     const autoWordBank = ["蘋果", "香蕉", "貓咪", "狗狗", "汽車", "火車", "電腦", "時鐘", "皮卡丘", "大象", "飛機", "漢堡", "珍奶", "雨傘", "鞋子", "西瓜", "企鵝"];
 
     function initApp() {
         document.body.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
         document.getElementById('chat-messages').addEventListener('touchmove', e => e.stopPropagation(), false);
         document.querySelector('.player-list').addEventListener('touchmove', e => e.stopPropagation(), false);
-        
-        // 【新增功能 2】檢查網址是否有 ?room=XXXX 邀請碼
         checkUrlForInvite();
     }
 
@@ -204,29 +211,25 @@
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
         if (roomId) {
-            // 如果是透過連結進來的：隱藏建房區，自動填入房號
             document.getElementById('lobby-title').innerText = "🔗 準備加入好友的房間";
             document.getElementById('host-section').style.display = 'none';
             document.getElementById('join-input-group').style.display = 'none';
             document.getElementById('join-room-id').value = roomId;
             document.getElementById('join-btn').innerText = `🚀 點我加入房間 [${roomId}]`;
-            
-            // 自動 focus 名字輸入框讓玩家改名
             setTimeout(() => document.getElementById('player-name').focus(), 500);
         }
     }
 
-    // 【新增功能 3】點擊複製包含網址的邀請連結
+    // 複製邀請連結修正
     function copyInviteLink() {
-        let code = document.getElementById('room-id-ui').innerText.split("\n")[0].replace("代碼: ", "").trim();
-        // 抓取目前乾淨的網址 (不含舊的參數) 並加上房號參數
+        if(!currentRoomCode) return;
         let baseUrl = window.location.href.split('?')[0];
-        let inviteLink = `${baseUrl}?room=${code}`;
+        let inviteLink = `${baseUrl}?room=${currentRoomCode}`;
         
         navigator.clipboard.writeText(inviteLink).then(() => {
-            alert(`🔗 邀請連結已複製！\n\n網址：\n${inviteLink}\n\n趕快貼給朋友讓他們直接點擊加入吧！`);
+            alert(`🔗 邀請連結已複製！\n\n網址：\n${inviteLink}\n\n可以直接在 LINE 或 Messenger 貼給朋友囉！`);
         }).catch(err => {
-            alert("複製失敗，請手動複製房號：" + code);
+            alert("複製失敗，請手動複製房號：" + currentRoomCode);
         });
     }
 
@@ -308,7 +311,7 @@
     }
 
     function startGameHost() {
-        if(players.length < 2) return alert("至少需要 2 名玩家！(你可以複製網址傳給朋友)");
+        if(players.length < 2) return alert("至少需要 2 名玩家！(你可以點擊『🔗複製連結』傳給朋友)");
         document.getElementById('btn-start-game').style.display = 'none';
         gameState.currentRound = 1; gameState.drawerIndex = 0; gameState.isPlaying = true;
         broadcast({ type: 'game_start', maxRounds: gameState.maxRounds });
@@ -437,10 +440,12 @@
 
     function showLoading(msg) { document.getElementById('loading-text').innerText = msg; document.getElementById('loading-modal').classList.remove('hidden'); }
     function hideLoading() { document.getElementById('loading-modal').classList.add('hidden'); }
+    
     function enterGameScreen(code) {
+        currentRoomCode = code; // 儲存房號供複製連結使用
         hideLoading(); document.getElementById('lobby-container').classList.add('hidden');
         document.getElementById('game-container').style.display = 'flex';
-        document.getElementById('room-id-ui').innerHTML = `代碼: ${code}<br><small>(點擊複製邀請網址)</small>`;
+        document.getElementById('room-id-ui').innerHTML = `🔗 複製連結<br><small>(${code})</small>`;
     }
     
     function updatePlayersUI() {
@@ -478,8 +483,6 @@
         
         promptInterval = setInterval(() => {
             timeLeft--; document.getElementById('modal-timer').innerText = timeLeft;
-            
-            // 【觸發隨機題庫】如果時間到，自動從題庫抽一題送出
             if (timeLeft <= 0) {
                 let randomWord = autoWordBank[Math.floor(Math.random() * autoWordBank.length)];
                 document.getElementById('custom-word-input').value = randomWord; 

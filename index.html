@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gartic 手機雙平台同樂版</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #0b1a2a; color: #333; display: flex; height: 100vh; overflow: hidden; justify-content: center; align-items: center; }
+
+        /* 大廳設定 */
+        #lobby-container { background-color: #fff; padding: 30px; border-radius: 15px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
+        #lobby-container h1 { color: #2980b9; margin-bottom: 20px; font-size: 24px; }
+        .setting-group { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 15px; font-weight: bold; color: #34495e; }
+        .setting-group select, .setting-group input { width: 100%; padding: 10px; font-size: 16px; border-radius: 8px; border: 2px solid #bdc3c7; outline: none; margin-top: 5px; }
+        .start-btn { width: 100%; padding: 15px; background-color: #2ecc71; color: white; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+
+        /* 遊戲主畫面 - 預設為電腦版排版 */
+        #game-container { display: none; width: 100%; max-width: 1200px; height: 100vh; background-color: #12283d; padding: 10px; gap: 10px; display: flex; flex-direction: row; }
+        
+        /* 玩家列表 */
+        .sidebar { width: 220px; background-color: #ffffff; border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; }
+        .sidebar-header { background-color: #2980b9; color: white; padding: 10px; font-weight: bold; text-align: center; font-size: 14px; }
+        .player-list { flex-grow: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .player-item { display: flex; align-items: center; padding: 8px; border-radius: 8px; border: 1px solid #eee; position: relative; }
+        .player-item.drawer { background-color: #e8f4fd; border: 2px solid #3498db; }
+        .player-item.guessed { background-color: #e8f8f5; border: 2px solid #2ecc71; }
+        .player-avatar { width: 35px; height: 35px; border-radius: 50%; margin-right: 10px; display: flex; justify-content: center; align-items: center; color: white; font-weight: bold; flex-shrink: 0; }
+        .player-info { flex-grow: 1; min-width: 0; }
+        .player-name { font-weight: bold; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .player-score { font-size: 11px; color: #666; font-weight: bold; }
+        .score-float { position: absolute; right: 5px; color: #2ecc71; font-weight: bold; font-size: 14px; animation: floatUp 1.2s ease-out forwards; }
+
+        /* 中間畫布區 */
+        .main-area { flex-grow: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+        .top-bar { width: 100%; background-color: #fff; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; margin-bottom: 10px; }
+        .timer { font-size: 20px; font-weight: bold; color: #e74c3c; width: 60px; }
+        .word-hint { font-size: 20px; font-weight: bold; letter-spacing: 2px; text-align: center; flex-grow: 1; color: #2c3e50; }
+        .round-info { font-size: 14px; font-weight: bold; color: #7f8c8d; text-align: right; width: 80px; }
+        
+        .canvas-container { background-color: #fff; border-radius: 10px; padding: 5px; width: 100%; flex-grow: 1; position: relative; display: flex; justify-content: center; align-items: center; touch-action: none; /* 關鍵：防止手機在畫圖時滾動網頁 */ }
+        canvas { background-color: #fff; cursor: crosshair; border: 1px solid #eee; border-radius: 5px; width: 100%; height: 100%; object-fit: contain; }
+        #canvas-lock-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0); z-index: 5; display: none; }
+        
+        .toolbar { width: 100%; background-color: #fff; border-radius: 10px; padding: 10px; margin-top: 10px; display: flex; justify-content: center; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .color-btn { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #ccc; cursor: pointer; }
+        .tool-btn { padding: 8px 15px; background-color: #ecf0f1; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+
+        /* 右側聊天室 */
+        .chat-area { display: flex; flex-direction: column; background-color: #fff; width: 280px; }
+        .chat-messages { flex-grow: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+        .msg { padding: 5px 8px; border-radius: 5px; word-break: break-word; }
+        .msg.system { color: #8e44ad; font-weight: bold; background-color: #f4ecf7; }
+        .msg.correct { color: #27ae60; font-weight: bold; background-color: #eafaf1; }
+        .msg.info { color: #d35400; font-weight: bold; background-color: #fdf2e9; }
+        .msg.guess { color: #333; background-color: #f9f9f9; }
+        .chat-input-area { padding: 10px; border-top: 1px solid #eee; display: flex; }
+        .chat-input-area input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px 0 0 5px; outline: none; font-size: 16px; /* 防止 iOS 點擊輸入框時自動放大 */ }
+        .chat-input-area button { padding: 10px 15px; background-color: #2980b9; color: white; border: none; border-radius: 0 5px 5px 0; font-weight: bold; }
+
+        /* 彈出視窗 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background-color: #fff; padding: 25px; border-radius: 15px; text-align: center; width: 90%; max-width: 350px; }
+        .modal-timer { font-size: 40px; font-weight: bold; color: #e74c3c; margin: 10px 0; }
+        .modal-content input { width: 100%; padding: 12px; font-size: 18px; text-align: center; border: 2px solid #bdc3c7; border-radius: 8px; margin-bottom: 15px; outline: none; }
+        
+        .hidden { display: none !important; }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-20px); opacity: 0; } }
+
+        /* ================= 手機版 RWD 核心設定 ================= */
+        @media (max-width: 800px) {
+            #game-container { 
+                flex-direction: column; /* 變成上下排列 */
+                padding: 5px; 
+                gap: 5px;
+            }
+            /* 玩家列表變成水平滑動的橫幅 */
+            .sidebar:not(.chat-area) { 
+                width: 100%; 
+                flex-direction: row; 
+                height: 70px; 
+                border-radius: 5px;
+            }
+            .sidebar-header { display: none; /* 手機版隱藏標題省空間 */ }
+            .player-list { 
+                flex-direction: row; 
+                overflow-x: auto; 
+                overflow-y: hidden;
+                align-items: center;
+                padding: 5px;
+            }
+            .player-item { min-width: 120px; height: 50px; }
+            
+            /* 中間畫布區 */
+            .main-area { flex-grow: 0; height: 50vh; /* 畫布佔畫面一半 */ }
+            .top-bar { padding: 5px 10px; margin-bottom: 5px; }
+            .word-hint { font-size: 16px; }
+            .timer, .round-info { font-size: 14px; width: auto; }
+            .toolbar { padding: 5px; margin-top: 5px; }
+            
+            /* 聊天區填滿剩餘高度 */
+            .chat-area { 
+                width: 100%; 
+                flex-grow: 1; 
+                border-radius: 5px;
+                height: 0; /* 讓 flex-grow 接管高度 */
+            }
+        }
+    </style>
+</head>
+<body onload="initApp()">
+
+<div id="lobby-container">
+    <h1>🎨 Gartic 雙平台版</h1>
+    <div class="setting-group">
+        <label>你的暱稱：</label>
+        <input type="text" id="player-name-input" value="手機畫家">
+    </div>
+    <div class="setting-group">
+        <label>作畫時間：</label>
+        <select id="setting-time">
+            <option value="60" selected>60 秒</option>
+            <option value="90">90 秒</option>
+        </select>
+    </div>
+    <button class="start-btn" onclick="initGame()">進入遊戲</button>
+</div>
+
+<div id="game-container" style="display: none;">
+    <div class="sidebar">
+        <div class="sidebar-header">排行榜</div>
+        <div class="player-list" id="player-list-ui"></div>
+    </div>
+
+    <div class="main-area">
+        <div class="top-bar">
+            <div class="timer">⏱️ <span id="game-timer">--</span></div>
+            <div class="word-hint" id="word-display">等待出題...</div>
+            <div class="round-info" id="round-display">回合 1</div>
+        </div>
+
+        <div class="canvas-container" id="canvas-wrapper">
+            <div id="canvas-lock-overlay"></div>
+            <canvas id="drawing-board" width="800" height="600"></canvas>
+        </div>
+
+        <div class="toolbar" id="game-toolbar">
+            <div class="color-btn" style="background: #000000;" onclick="changeColor('#000000')"></div>
+            <div class="color-btn" style="background: #e74c3c;" onclick="changeColor('#e74c3c')"></div>
+            <div class="color-btn" style="background: #3498db;" onclick="changeColor('#3498db')"></div>
+            <div class="color-btn" style="background: #f1c40f;" onclick="changeColor('#f1c40f')"></div>
+            <div class="color-btn" style="background: #2ecc71;" onclick="changeColor('#2ecc71')"></div>
+            <div class="color-btn" style="background: #ffffff; border-color: #999;" onclick="changeColor('#ffffff')" title="橡皮擦"></div>
+            <button class="tool-btn" onclick="clearCanvas()">🗑️ 清空</button>
+        </div>
+    </div>
+
+    <div class="sidebar chat-area">
+        <div class="sidebar-header">猜題區</div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="輸入答案..." onkeypress="handleChatKey(event)">
+            <button onclick="submitChat()">送出</button>
+        </div>
+    </div>
+</div>
+
+<div id="prompt-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h2>輪到你出題！</h2>
+        <div class="modal-timer" id="modal-timer">30</div>
+        <input type="text" id="custom-word-input" placeholder="想畫什麼呢？" autocomplete="off">
+        <button class="start-btn" onclick="userSubmitWord()">確認出題</button>
+    </div>
+</div>
+
+<script>
+    // --- (與上一版相同的遊戲邏輯) ---
+    let maxRounds = 3, maxDrawTime = 60, currentRound = 1, currentDrawerIndex = 0;
+    let gameTimer = null, timeLeft = 0, currentWord = "", correctAnswersThisTurn = 0;
+    let players = [
+        { id: 0, name: "你", score: 0, isBot: false, hasGuessed: false, color: '#3498db' },
+        { id: 1, name: "小明", score: 0, isBot: true, hasGuessed: false, color: '#e74c3c' },
+        { id: 2, name: "老王", score: 0, isBot: true, hasGuessed: false, color: '#f1c40f' }
+    ];
+    const botWordBank = ["蘋果", "香蕉", "珍奶", "貓咪", "手機", "腳踏車", "電腦", "漢堡"];
+    const wrongGuesses = ["不知道", "西瓜？", "圓形", "神奇寶貝", "好難", "隨便猜"];
+    let botDrawInterval = null;
+
+    function initApp() {
+        // 防止手機下拉刷新
+        document.body.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+        // 釋放特定區域(聊天室、玩家列表)的滾動權限
+        document.getElementById('chat-messages').addEventListener('touchmove', function(e) { e.stopPropagation(); }, false);
+        document.querySelector('.player-list').addEventListener('touchmove', function(e) { e.stopPropagation(); }, false);
+    }
+
+    function initGame() {
+        players[0].name = document.getElementById('player-name-input').value.trim() || "手機畫家";
+        maxDrawTime = parseInt(document.getElementById('setting-time').value);
+        document.getElementById('lobby-container').classList.add('hidden');
+        document.getElementById('game-container').style.display = 'flex';
+        startNewTurn();
+    }
+
+    function startNewTurn() {
+        clearInterval(gameTimer); clearInterval(botDrawInterval); clearCanvas();
+        correctAnswersThisTurn = 0;
+        players.forEach(p => p.hasGuessed = false);
+        document.getElementById('round-display').innerText = `回合 ${currentRound}`;
+        let drawer = players[currentDrawerIndex];
+        addChatMessage('系統', `▼ 當前畫家：【${drawer.name}】`, 'system');
+        updatePlayerListUI();
+
+        if (!drawer.isBot) setupUserPromptPhase();
+        else setupBotPromptPhase(drawer);
+    }
+
+    let promptTimeLeft = 30, promptInterval = null;
+    function setupUserPromptPhase() {
+        document.getElementById('game-toolbar').style.opacity = "1";
+        document.getElementById('canvas-lock-overlay').style.display = "none";
+        document.getElementById('word-display').innerText = "思考中...";
+        document.getElementById('prompt-modal').classList.remove('hidden');
+        document.getElementById('custom-word-input').value = "";
+        
+        promptTimeLeft = 30;
+        document.getElementById('modal-timer').innerText = promptTimeLeft;
+        promptInterval = setInterval(() => {
+            promptTimeLeft--; document.getElementById('modal-timer').innerText = promptTimeLeft;
+            if (promptTimeLeft <= 0) { document.getElementById('custom-word-input').value = "手機"; userSubmitWord(); }
+        }, 1000);
+    }
+
+    function userSubmitWord() {
+        let word = document.getElementById('custom-word-input').value.trim();
+        if (!word) return;
+        clearInterval(promptInterval);
+        document.getElementById('prompt-modal').classList.add('hidden');
+        currentWord = word;
+        document.getElementById('word-display').innerText = `${currentWord} (你作畫)`;
+        startDrawingPhase(false);
+    }
+
+    function setupBotPromptPhase(botPlayer) {
+        document.getElementById('game-toolbar').style.opacity = "0.3";
+        document.getElementById('canvas-lock-overlay').style.display = "block";
+        document.getElementById('word-display').innerText = `${botPlayer.name} 選題中...`;
+        setTimeout(() => {
+            currentWord = botWordBank[Math.floor(Math.random() * botWordBank.length)];
+            let masked = ""; for(let i=0; i<currentWord.length; i++) masked += "_ ";
+            document.getElementById('word-display').innerText = masked;
+            startDrawingPhase(true);
+        }, 2000);
+    }
+
+    function startDrawingPhase(isBot) {
+        timeLeft = maxDrawTime; document.getElementById('game-timer').innerText = timeLeft;
+        gameTimer = setInterval(() => {
+            timeLeft--; document.getElementById('game-timer').innerText = timeLeft;
+            if (isBot && timeLeft === Math.floor(maxDrawTime / 2)) {
+                let hint = currentWord.charAt(0) + " "; for(let i=1; i<currentWord.length; i++) hint += "_ ";
+                document.getElementById('word-display').innerText = hint;
+            }
+            if (timeLeft <= 0) endTurn();
+        }, 1000);
+        if (isBot) simulateBotDrawing(); else simulateBotGuessing();
+    }
+
+    function processCorrectAnswer(guesser) {
+        if (guesser.hasGuessed) return;
+        guesser.hasGuessed = true;
+        let timeBonus = Math.floor((timeLeft / maxDrawTime) * 10) + 3;
+        guesser.score += timeBonus;
+        players[currentDrawerIndex].score += 4; // 畫家加分
+        correctAnswersThisTurn++;
+        addChatMessage('系統', `🎉 ${guesser.name} 猜對了！ (+${timeBonus}分)`, 'correct');
+        updatePlayerListUI();
+        if (correctAnswersThisTurn === players.length - 1) setTimeout(endTurn, 1500);
+    }
+
+    function endTurn() {
+        clearInterval(gameTimer); clearInterval(botDrawInterval);
+        addChatMessage('系統', `答案是：【${currentWord}】`, 'info');
+        currentDrawerIndex++;
+        if (currentDrawerIndex >= players.length) { currentDrawerIndex = 0; currentRound++; }
+        if (currentRound > maxRounds) {
+            let winner = [...players].sort((a,b)=>b.score - a.score)[0];
+            alert(`🏆 遊戲結束！贏家是：${winner.name}`); location.reload();
+        } else { setTimeout(startNewTurn, 3000); }
+    }
+
+    function simulateBotGuessing() {
+        players.forEach(p => {
+            if (p.isBot) {
+                setTimeout(() => {
+                    if (timeLeft > 5 && !p.hasGuessed && currentDrawerIndex === 0) {
+                        if (Math.random() > 0.4) processCorrectAnswer(p);
+                        else addChatMessage(p.name, wrongGuesses[Math.floor(Math.random() * wrongGuesses.length)], 'guess');
+                    }
+                }, (Math.random() * (maxDrawTime - 10) + 3) * 1000);
+            }
+        });
+    }
+
+    function simulateBotDrawing() {
+        let lines = 0; ctx.lineWidth = 4; ctx.lineCap = 'round';
+        botDrawInterval = setInterval(() => {
+            if (lines > 30) return;
+            ctx.beginPath();
+            ctx.strokeStyle = ['#000', '#e74c3c', '#3498db', '#f1c40f'][Math.floor(Math.random()*4)];
+            ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+            ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
+            ctx.stroke(); lines++;
+        }, 1000);
+    }
+
+    function updatePlayerListUI() {
+        const container = document.getElementById('player-list-ui'); container.innerHTML = '';
+        let sorted = [...players].sort((a, b) => b.score - a.score);
+        sorted.forEach((p, idx) => {
+            let cls = "player-item" + (p.id === currentDrawerIndex ? " drawer" : "") + (p.hasGuessed ? " guessed" : "");
+            container.innerHTML += `<div class="${cls}"><div class="player-avatar" style="background:${p.color}">${idx+1}</div>
+            <div class="player-info"><div class="player-name">${p.name}</div><div class="player-score">${p.score} pts</div></div></div>`;
+        });
+    }
+
+    function handleChatKey(e) { if (e.key === 'Enter') submitChat(); }
+    function submitChat() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim(); if (!text) return;
+        if (currentDrawerIndex !== 0 && text === currentWord && !players[0].hasGuessed) processCorrectAnswer(players[0]);
+        else addChatMessage(players[0].name, text, 'guess');
+        input.value = ""; document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+    }
+    function addChatMessage(sender, text, type) {
+        const box = document.getElementById('chat-messages');
+        box.innerHTML += `<div class="msg ${type}"><b>${sender}</b>：${text}</div>`;
+        box.scrollTop = box.scrollHeight;
+    }
+
+    /* ================= 畫布邏輯 (支援滑鼠與手機觸控) ================= */
+    const canvas = document.getElementById('drawing-board');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false; let currentColor = '#000000'; let currentLineWidth = 5;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+    function changeColor(color) { currentColor = color; currentLineWidth = (color === '#ffffff') ? 30 : 5; }
+    function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+
+    // 計算精準的滑鼠/觸控座標 (處理 CSS 縮放問題)
+    function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        // 如果是觸控事件
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        // 將畫面上取得的座標，轉換為 Canvas 內部的真實解析度座標
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    }
+
+    function startDraw(e) {
+        if (currentDrawerIndex !== 0) return;
+        e.preventDefault(); // 防止手機滾動
+        isDrawing = true;
+        const pos = getPos(e);
+        ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+        if (!isDrawing || currentDrawerIndex !== 0) return;
+        e.preventDefault(); // 防止手機滾動
+        const pos = getPos(e);
+        ctx.strokeStyle = currentColor;
+        ctx.lineWidth = currentLineWidth;
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+    }
+
+    function endDraw(e) { 
+        if (isDrawing) { e.preventDefault(); isDrawing = false; } 
+    }
+
+    // 綁定電腦滑鼠事件
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('mouseout', endDraw);
+
+    // 綁定手機觸控事件 (設定 passive: false 才能使用 preventDefault 阻止畫面滾動)
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    canvas.addEventListener('touchend', endDraw, { passive: false });
+    canvas.addEventListener('touchcancel', endDraw, { passive: false });
+</script>
+
+</body>
+</html>

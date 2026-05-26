@@ -187,7 +187,7 @@
 
 <script>
     // 🔗 【關鍵設定】把下方換成你在 Render 部署成功的後端網址
-    const SERVER_URL = "https://my-gartic-server.onrender.com"; 
+    const SERVER_URL = "請把你的Render後端網址貼在這裡"; 
 
     let socket = null; let myId = ""; let myName = ""; let isHost = false;
     let players = []; 
@@ -231,7 +231,7 @@
         if(!currentRoomCode) return;
         let baseUrl = window.location.href.split('?')[0];
         let inviteLink = `${baseUrl}?room=${currentRoomCode}`;
-        navigator.clipboard.writeText(inviteLink).then(() => alert(`🔗 邀請連結已複製！\n\n網址：\n${inviteLink}`)).catch(() => alert("複製失敗：" + currentRoomCode));
+        navigator.clipboard.writeText(inviteLink).then(() => alert(`🔗 邀請連結已複製！\n\n網址：\n${inviteLink}`)).catch(() => alert("複製失敗，請手動複製房號：" + currentRoomCode));
     }
 
     function connectToServer(callback) {
@@ -244,14 +244,7 @@
             callback();
         });
 
-        // 監聽來自雲端伺服器的所有廣播資料
         socket.on('data_from_host', data => handleDataFromHost(data));
-        
-        // 房主專用監聽
-        socket.on('client_joined', data => {
-            // 房主收到新玩家加入，稍後會由 join 事件傳送詳細資訊
-        });
-        
         socket.on('data_from_client', data => handleDataFromClient(data));
         socket.on('client_left', clientId => handlePlayerDrop(clientId));
         
@@ -308,13 +301,12 @@
             updatePlayersUI();
             
             if (gameState.isPlaying) {
-                // 私下補發進度給這個重連的人
-                socket.emit('host_broadcast', { type: 'sync_canvas', image: canvas.toDataURL() }); // 簡化處理
+                socket.emit('host_broadcast', { type: 'sync_canvas', image: canvas.toDataURL() }); 
             }
         }
         else if (data.type === 'chat') handleChatAttempt(data.clientId, data.text);
         else if (data.type === 'draw') { sendHostBroadcast(data); executeDrawLine(data); }
-        else if (data.type === 'clear_canvas') { sendHostBroadcast({ type: 'clear_canvas' }); clearCanvasLocal(); }
+        else if (data.type === 'clear_canvas') { sendHostBroadcast({ type: 'clear_canvas', senderId: data.senderId }); clearCanvasLocal(); }
         else if (data.type === 'submit_word') { gameState.currentWord = data.word; startGameTimer(); }
     }
     
@@ -366,7 +358,7 @@
 
     function startRoundTurn() {
         clearInterval(gameTimerInterval);
-        sendHostBroadcast({ type: 'clear_canvas' }); clearCanvasLocal();
+        sendHostBroadcast({ type: 'clear_canvas', senderId: myId }); clearCanvasLocal();
         players.forEach(p => { p.hasGuessed = false; p.isDrawer = false; });
         
         if (gameState.drawerIndex >= players.length) gameState.drawerIndex = 0;
@@ -444,7 +436,12 @@
         }
     }
 
+    // ==========================================
+    // ⚠️ 核心防呆機制：過濾多餘的回音 (Echo)
+    // ==========================================
     function handleDataFromHost(data) {
+        if (isHost) return; // 房主自己就是發送源，不需要處理任何伺服器廣播回來給自己的東西
+        
         if (data.type === 'sync_players') {
             players = data.players; updatePlayersUI();
             let myPlayer = players.find(p => p.id === myId);
@@ -461,8 +458,15 @@
             if(myPlayer && !myPlayer.isDrawer) document.getElementById('word-display').innerText = data.masked;
         }
         else if (data.type === 'sync_time') document.getElementById('game-timer').innerText = data.time;
-        else if (data.type === 'draw') executeDrawLine(data);
-        else if (data.type === 'clear_canvas') clearCanvasLocal();
+        else if (data.type === 'draw') {
+            // 【防蜘蛛網核心】如果這條線是我自己畫出去的，忽略它！
+            if (data.senderId === myId) return; 
+            executeDrawLine(data);
+        }
+        else if (data.type === 'clear_canvas') { 
+            if (data.senderId === myId) return; 
+            clearCanvasLocal(); 
+        }
         else if (data.type === 'prompt_request') { if (data.targetId === myId) openPromptModal(); }
         else if (data.type === 'score_anim') showScoreAnim(data.targetId, data.points);
         else if (data.type === 'kicked') { alert("你已被房主踢除！"); location.href = window.location.href.split('?')[0]; }
@@ -485,6 +489,7 @@
     function hideLoading() { document.getElementById('loading-modal').classList.add('hidden'); }
     
     function enterGameScreen(code) {
+        currentRoomCode = code; 
         hideLoading(); document.getElementById('lobby-container').classList.add('hidden');
         document.getElementById('game-container').style.display = 'flex';
         document.getElementById('room-id-ui').innerHTML = `🔗 複製連結<br><small>(${code})</small>`;
@@ -567,8 +572,8 @@
     function requestClearCanvas() {
         let myPlayer = players.find(p => p.id === myId); if(!myPlayer || !myPlayer.isDrawer) return;
         clearCanvasLocal(); 
-        if(isHost) sendHostBroadcast({ type: 'clear_canvas' }); 
-        else socket.emit('send_to_host', { type: 'clear_canvas' });
+        if(isHost) sendHostBroadcast({ type: 'clear_canvas', senderId: myId }); 
+        else socket.emit('send_to_host', { type: 'clear_canvas', senderId: myId });
     }
     function clearCanvasLocal() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
@@ -583,8 +588,9 @@
     function sendDrawData(x, y, isStart) {
         executeDrawLine({ x, y, color: currentColor, width: currentLineWidth, isStart });
         let now = Date.now();
-        if (isStart || now - lastSendTime > 20) { // 伺服器端優化，每 20 毫秒極速轉發
-            let data = { type: 'draw', x, y, color: currentColor, width: currentLineWidth, isStart };
+        if (isStart || now - lastSendTime > 20) { 
+            // 【防蜘蛛網核心】在此為這包資料打上你的專屬 ID 標籤 (senderId)
+            let data = { type: 'draw', x, y, color: currentColor, width: currentLineWidth, isStart, senderId: myId };
             if (isHost) sendHostBroadcast(data); 
             else if (socket) socket.emit('send_to_host', data);
             lastSendTime = now;

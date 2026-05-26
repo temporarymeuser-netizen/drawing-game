@@ -36,7 +36,10 @@
         .player-name { font-weight: bold; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .player-score { font-size: 11px; color: #666; font-weight: bold; }
         
-        /* 操作面板 (修復重點區) */
+        /* 踢除按鈕樣式 */
+        .kick-btn { background: #e74c3c; border: none; border-radius: 5px; color: white; padding: 4px 8px; font-size: 11px; cursor: pointer; margin-left: 5px; flex-shrink: 0; }
+        .kick-btn:hover { background: #c0392b; }
+
         .action-panel { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; border-top: 1px solid #eee; }
         .action-panel .btn { margin: 0; }
 
@@ -73,20 +76,18 @@
         .modal-content { background-color: #fff; padding: 25px; border-radius: 15px; text-align: center; width: 90%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .modal-content input { width: 100%; padding: 12px; font-size: 18px; text-align: center; border: 2px solid #bdc3c7; border-radius: 8px; margin-bottom: 15px; outline: none; }
         .hidden { display: none !important; }
-
+        
         .result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; font-size: 18px; }
         .result-item:first-child { font-size: 24px; font-weight: bold; color: #d35400; background: #fff8e1; border-radius: 8px; border: none; margin-bottom: 5px;}
 
-        /* 手機版修復 */
         @media (max-width: 800px) {
             #game-container { flex-direction: column; padding: 5px; gap: 5px; }
             .sidebar:not(.chat-area) { width: 100%; flex-direction: row; height: 60px; flex-shrink: 0; }
             .sidebar-header { display: none; }
             .player-list { flex-direction: row; overflow-x: auto; overflow-y: hidden; align-items: center; padding: 5px; }
-            .player-item { min-width: 110px; height: 45px; padding: 5px; }
+            .player-item { min-width: 130px; height: 45px; padding: 5px; }
             .player-avatar { width: 25px; height: 25px; font-size: 12px; margin-right: 5px; }
             
-            /* 將按鈕並排顯示 */
             .action-panel { flex-direction: row; padding: 5px; align-items: center; border-top: none; border-left: 1px solid #eee; }
             .action-panel .btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; height: 36px; line-height: 1; }
 
@@ -106,20 +107,15 @@
 
 <div id="lobby-container">
     <h1 id="lobby-title">🎨 網路連線大廳</h1>
-    
     <div class="setting-group">
-        <label>設定你的遊戲暱稱：</label>
+        <label>設定遊戲暱稱：</label>
         <input type="text" id="player-name" placeholder="輸入你想顯示的名字" value="玩家">
     </div>
     
     <div id="host-section">
         <div class="setting-group">
             <label>設定回合數 (僅房主有效)：</label>
-            <select id="setting-rounds">
-                <option value="2">2 回合</option>
-                <option value="3" selected>3 回合</option>
-                <option value="5">5 回合</option>
-            </select>
+            <select id="setting-rounds"><option value="2">2 回合</option><option value="3" selected>3 回合</option><option value="5">5 回合</option></select>
         </div>
         <button class="btn btn-blue" onclick="createRoom()">👑 建立新房間</button>
         <div class="divider"></div>
@@ -138,7 +134,6 @@
     <div class="sidebar">
         <div class="sidebar-header">玩家名單</div>
         <div class="player-list" id="player-list-ui"></div>
-        
         <div class="action-panel">
             <button class="btn btn-orange" id="btn-start-game" style="display:none;" onclick="startGameHost()">🚀 開始遊戲</button>
             <button class="btn btn-light" id="room-id-ui" onclick="copyInviteLink()">🔗 複製連結</button>
@@ -187,7 +182,7 @@
     <div class="modal-content" style="max-width: 450px;">
         <h2 style="color:#f39c12; margin-bottom: 15px; font-size: 28px;">🏆 遊戲結算 🏆</h2>
         <div id="results-list" style="margin-bottom: 25px; text-align: left;"></div>
-        <button class="btn btn-blue" onclick="location.href = window.location.href.split('?')[0]">🔄 回到首頁再來一局</button>
+        <button class="btn btn-blue" onclick="location.href = window.location.href.split('?')[0]">🔄 回到首頁</button>
     </div>
 </div>
 
@@ -197,40 +192,48 @@
     let gameState = { status: 'LOBBY', drawerIndex: 0, currentRound: 1, maxRounds: 3, currentWord: "", timeLeft: 60, drawTime: 60, isPlaying: false };
     let gameTimerInterval = null; let promptInterval = null; let hostConnection = null;
     let currentRoomCode = "";
+    
+    // 【新增】永久記憶玩家專屬 ID，重整也不怕
+    let mySessionId = localStorage.getItem('gartic_session_id');
+    if(!mySessionId) {
+        mySessionId = Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('gartic_session_id', mySessionId);
+    }
 
-    const autoWordBank = ["蘋果", "香蕉", "貓咪", "狗狗", "汽車", "火車", "電腦", "時鐘", "皮卡丘", "大象", "飛機", "漢堡", "珍奶", "雨傘", "鞋子", "西瓜", "企鵝"];
+    const autoWordBank = ["蘋果", "香蕉", "貓咪", "狗狗", "汽車", "火車", "電腦", "時鐘", "皮卡丘", "大象", "飛機", "漢堡", "珍奶", "雨傘", "西瓜"];
 
     function initApp() {
         document.body.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
         document.getElementById('chat-messages').addEventListener('touchmove', e => e.stopPropagation(), false);
         document.querySelector('.player-list').addEventListener('touchmove', e => e.stopPropagation(), false);
         checkUrlForInvite();
+        
+        // 防呆：房主如果按到上一頁或重整，跳出警告 (因為房主一走房間就沒了)
+        window.addEventListener('beforeunload', (e) => {
+            if (isHost && gameState.isPlaying) {
+                e.preventDefault(); e.returnValue = '';
+            }
+        });
     }
 
     function checkUrlForInvite() {
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
         if (roomId) {
-            document.getElementById('lobby-title').innerText = "🔗 準備加入好友的房間";
+            document.getElementById('lobby-title').innerText = "🔗 加入好友房間";
             document.getElementById('host-section').style.display = 'none';
             document.getElementById('join-input-group').style.display = 'none';
             document.getElementById('join-room-id').value = roomId;
-            document.getElementById('join-btn').innerText = `🚀 點我加入房間 [${roomId}]`;
+            document.getElementById('join-btn').innerText = `🚀 加入房間 [${roomId}]`;
             setTimeout(() => document.getElementById('player-name').focus(), 500);
         }
     }
 
-    // 複製邀請連結修正
     function copyInviteLink() {
         if(!currentRoomCode) return;
         let baseUrl = window.location.href.split('?')[0];
         let inviteLink = `${baseUrl}?room=${currentRoomCode}`;
-        
-        navigator.clipboard.writeText(inviteLink).then(() => {
-            alert(`🔗 邀請連結已複製！\n\n網址：\n${inviteLink}\n\n可以直接在 LINE 或 Messenger 貼給朋友囉！`);
-        }).catch(err => {
-            alert("複製失敗，請手動複製房號：" + currentRoomCode);
-        });
+        navigator.clipboard.writeText(inviteLink).then(() => alert(`🔗 邀請連結已複製！\n\n網址：\n${inviteLink}`)).catch(() => alert("複製失敗，請手動複製房號：" + currentRoomCode));
     }
 
     function createRoom() {
@@ -242,7 +245,7 @@
 
         peer.on('open', (id) => {
             isHost = true; myId = id;
-            players.push({ id: myId, name: myName, score: 0, hasGuessed: false, isDrawer: false });
+            players.push({ id: myId, sessionId: mySessionId, name: myName, score: 0, hasGuessed: false, isDrawer: false });
             enterGameScreen(roomCode);
             document.getElementById('btn-start-game').style.display = 'block';
             addChat('系統', '房間建立成功！', 'system');
@@ -254,21 +257,7 @@
                 clientConnections.push(conn);
                 conn.on('data', data => handleDataFromClient(conn, data));
             });
-            conn.on('close', () => {
-                let droppedId = conn.peer;
-                players = players.filter(p => p.id !== droppedId);
-                clientConnections = clientConnections.filter(c => c.peer !== droppedId);
-                broadcast({ type: 'sync_players', players: players });
-                updatePlayersUI();
-                
-                if (gameState.isPlaying && players.length > 0) {
-                    let currentDrawer = players[gameState.drawerIndex];
-                    if (!currentDrawer || currentDrawer.id === droppedId) {
-                        broadcast({ type: 'chat', sender: '系統', text: '⚠️ 作畫者斷線，回合中斷！', msgType: 'system' });
-                        endRoundTurn(); 
-                    }
-                }
-            });
+            conn.on('close', () => handlePlayerDrop(conn.peer));
         });
     }
 
@@ -283,35 +272,104 @@
             hostConnection = peer.connect('GARTIC-' + roomCode);
             hostConnection.on('open', () => {
                 enterGameScreen(roomCode);
-                hostConnection.send({ type: 'join', id: myId, name: myName });
+                // 傳送 sessionID 讓房主認得你
+                hostConnection.send({ type: 'join', id: myId, sessionId: mySessionId, name: myName });
             });
             hostConnection.on('data', data => handleDataFromHost(data));
-            hostConnection.on('close', () => { alert("已與房主斷線！"); location.href = window.location.href.split('?')[0]; });
+            hostConnection.on('close', () => { alert("房主已離開或連線中斷！"); location.href = window.location.href.split('?')[0]; });
         });
         peer.on('error', () => { hideLoading(); alert("連線失敗，確認代碼！"); });
     }
 
     function handleDataFromClient(conn, data) {
         if (data.type === 'join') {
-            players.push({ id: data.id, name: data.name, score: 0, hasGuessed: false, isDrawer: false });
+            // 【修復重連邏輯】檢查是否是斷線重連的玩家
+            let existingPlayer = players.find(p => p.sessionId === data.sessionId);
+            if (existingPlayer) {
+                existingPlayer.id = data.id; // 更新連線ID
+                existingPlayer.name = data.name;
+                broadcast({ type: 'chat', sender: '系統', text: `${data.name} 重新連線了！分數已保留。`, msgType: 'info' });
+            } else {
+                players.push({ id: data.id, sessionId: data.sessionId, name: data.name, score: 0, hasGuessed: false, isDrawer: false });
+                broadcast({ type: 'chat', sender: '系統', text: `${data.name} 加入房間！`, msgType: 'system' });
+            }
+            
             broadcast({ type: 'sync_players', players: players });
-            broadcast({ type: 'chat', sender: '系統', text: `${data.name} 加入房間！`, msgType: 'system' });
             updatePlayersUI();
+            
+            // 如果遊戲進行中，補發畫布進度給剛進來/重連的人
+            if (gameState.isPlaying) {
+                conn.send({ type: 'sync_round', current: gameState.currentRound, max: gameState.maxRounds });
+                conn.send({ type: 'sync_canvas', image: canvas.toDataURL() });
+                let masked = ""; for(let i=0; i<gameState.currentWord.length; i++) masked += "_ ";
+                conn.send({ type: 'sync_word_start', masked: masked, time: gameState.timeLeft });
+            }
         }
         else if (data.type === 'chat') handleChatAttempt(data.senderId, data.text);
-        else if (data.type === 'draw') { clientConnections.forEach(c => { if(c.peer !== conn.peer) c.send(data); }); executeDrawLine(data); }
+        else if (data.type === 'draw') { clientConnections.forEach(c => { if(c && c.open && c.peer !== conn.peer) c.send(data); }); executeDrawLine(data); }
         else if (data.type === 'clear_canvas') { broadcast({ type: 'clear_canvas' }); clearCanvasLocal(); }
         else if (data.type === 'submit_word') { gameState.currentWord = data.word; startGameTimer(); }
     }
+    
+    // 【新增】房主專用：處理玩家斷線或被踢
+    function handlePlayerDrop(droppedPeerId) {
+        let droppedIndex = players.findIndex(p => p.id === droppedPeerId);
+        if(droppedIndex === -1) return;
+        
+        let droppedPlayer = players[droppedIndex];
+        players.splice(droppedIndex, 1);
+        clientConnections = clientConnections.filter(c => c.peer !== droppedPeerId);
+        
+        broadcast({ type: 'sync_players', players: players });
+        updatePlayersUI();
+        
+        if (gameState.isPlaying) {
+            if (droppedPlayer.isDrawer) {
+                broadcast({ type: 'chat', sender: '系統', text: `⚠️ 作畫者 [${droppedPlayer.name}] 離開，強制切換下一位！`, msgType: 'system' });
+                clearInterval(gameTimerInterval); clearInterval(promptInterval);
+                gameState.currentWord = ""; 
+                
+                // 陣列縮小了，原 index 會剛好指向下一位玩家
+                gameState.drawerIndex = droppedIndex;
+                if (gameState.drawerIndex >= players.length) {
+                    gameState.drawerIndex = 0;
+                    gameState.currentRound++;
+                }
+                
+                if (gameState.currentRound > gameState.maxRounds) {
+                    gameState.isPlaying = false;
+                    setTimeout(triggerGameOver, 2000);
+                } else {
+                    setTimeout(startRoundTurn, 2000); 
+                }
+            } else {
+                // 如果是別人離開，只要調整 index 防止錯位
+                if (droppedIndex < gameState.drawerIndex) gameState.drawerIndex--;
+                checkAllGuessed(); // 檢查是不是剩下的人都猜對了
+            }
+        }
+    }
+
+    // 【新增】房主專用：踢人功能
+    function kickPlayer(targetId) {
+        if(!confirm("確定要踢除這位玩家嗎？")) return;
+        let conn = clientConnections.find(c => c.peer === targetId);
+        if(conn) {
+            conn.send({ type: 'kicked' }); // 告訴他被踢了
+            conn.close(); // 觸發 handlePlayerDrop
+        } else {
+            handlePlayerDrop(targetId); // 強制清理
+        }
+    }
 
     function broadcast(data) {
-        clientConnections.forEach(c => c.send(data));
+        clientConnections.forEach(c => { if (c && c.open) c.send(data); });
         if(data.type === 'chat') addChat(data.sender, data.text, data.msgType);
         if(data.type === 'score_anim') showScoreAnim(data.targetId, data.points); 
     }
 
     function startGameHost() {
-        if(players.length < 2) return alert("至少需要 2 名玩家！(你可以點擊『🔗複製連結』傳給朋友)");
+        if(players.length < 2) return alert("至少需要 2 名玩家！(點擊『🔗複製連結』傳給朋友)");
         document.getElementById('btn-start-game').style.display = 'none';
         gameState.currentRound = 1; gameState.drawerIndex = 0; gameState.isPlaying = true;
         broadcast({ type: 'game_start', maxRounds: gameState.maxRounds });
@@ -399,10 +457,16 @@
             broadcast({ type: 'score_anim', targetId: drawer.id, points: 4 });
             showScoreAnim(sender.id, timeBonus); showScoreAnim(drawer.id, 4);
             
-            if(players.every(p => p.isDrawer || p.hasGuessed)) {
-                clearInterval(gameTimerInterval); setTimeout(endRoundTurn, 2000);
-            }
+            checkAllGuessed();
         } else { broadcast({ type: 'chat', sender: sender.name, text: text, msgType: 'guess' }); }
+    }
+    
+    function checkAllGuessed() {
+        // 如果剩下的人 (非畫家) 全都猜對了，提早結束回合
+        if(players.length > 1 && players.every(p => p.isDrawer || p.hasGuessed)) {
+            clearInterval(gameTimerInterval); 
+            setTimeout(endRoundTurn, 2000);
+        }
     }
 
     function handleDataFromHost(data) {
@@ -426,6 +490,16 @@
         else if (data.type === 'clear_canvas') clearCanvasLocal();
         else if (data.type === 'prompt_request') if (data.targetId === myId) openPromptModal();
         else if (data.type === 'score_anim') showScoreAnim(data.targetId, data.points);
+        else if (data.type === 'kicked') {
+            alert("你已被房主踢除！");
+            location.href = window.location.href.split('?')[0]; // 強制退回大廳
+        }
+        // 【新增】接收同步畫布影像
+        else if (data.type === 'sync_canvas') {
+            let img = new Image();
+            img.onload = () => ctx.drawImage(img, 0, 0);
+            img.src = data.image;
+        }
     }
 
     function showGameOverUI(sortedPlayers) {
@@ -442,10 +516,10 @@
     function hideLoading() { document.getElementById('loading-modal').classList.add('hidden'); }
     
     function enterGameScreen(code) {
-        currentRoomCode = code; // 儲存房號供複製連結使用
+        currentRoomCode = code; 
         hideLoading(); document.getElementById('lobby-container').classList.add('hidden');
         document.getElementById('game-container').style.display = 'flex';
-        document.getElementById('room-id-ui').innerHTML = `🔗 複製連結<br><small>(${code})</small>`;
+        document.getElementById('room-id-ui').innerText = "🔗 複製連結";
     }
     
     function updatePlayersUI() {
@@ -453,8 +527,18 @@
         let sorted = [...players].sort((a, b) => b.score - a.score);
         sorted.forEach((p, idx) => {
             let cls = "player-item" + (p.isDrawer ? " drawer" : "") + (p.hasGuessed ? " guessed" : "");
-            container.innerHTML += `<div class="${cls}" id="pcard-${p.id}"><div class="player-avatar">${idx+1}</div>
-            <div class="player-info"><div class="player-name">${p.name}</div><div class="player-score">${p.score} pts</div></div></div>`;
+            
+            // 【新增】房主的 UI 介面，可以踢人
+            let kickBtnHTML = (isHost && p.id !== myId) ? `<button class="kick-btn" onclick="kickPlayer('${p.id}')">踢出</button>` : '';
+            
+            container.innerHTML += `<div class="${cls}" id="pcard-${p.id}">
+                <div class="player-avatar">${idx+1}</div>
+                <div class="player-info">
+                    <div class="player-name">${p.name}</div>
+                    <div class="player-score">${p.score} pts</div>
+                </div>
+                ${kickBtnHTML}
+            </div>`;
         });
 
         let myPlayer = players.find(p => p.id === myId);
@@ -528,18 +612,30 @@
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         return { x: (clientX - rect.left) * (canvas.width / rect.width), y: (clientY - rect.top) * (canvas.height / rect.height) };
     }
-    function startDraw(e) {
-        let myPlayer = players.find(p => p.id === myId); if(!myPlayer || !myPlayer.isDrawer) return;
-        e.preventDefault(); isDrawing = true; const pos = getPos(e); sendDrawData(pos.x, pos.y, true);
-    }
-    function draw(e) { if (!isDrawing) return; e.preventDefault(); const pos = getPos(e); sendDrawData(pos.x, pos.y, false); }
-    function endDraw(e) { if (isDrawing) { e.preventDefault(); isDrawing = false; } }
-
+    
+    let lastSendTime = 0;
     function sendDrawData(x, y, isStart) {
         executeDrawLine({ x, y, color: currentColor, width: currentLineWidth, isStart });
-        let data = { type: 'draw', x, y, color: currentColor, width: currentLineWidth, isStart };
-        if (isHost) broadcast(data); else hostConnection.send(data);
+        let now = Date.now();
+        if (isStart || now - lastSendTime > 25) {
+            let data = { type: 'draw', x, y, color: currentColor, width: currentLineWidth, isStart };
+            if (isHost) broadcast(data); 
+            else if (hostConnection && hostConnection.open) hostConnection.send(data);
+            lastSendTime = now;
+        }
     }
+
+    function startDraw(e) {
+        let myPlayer = players.find(p => p.id === myId); if(!myPlayer || !myPlayer.isDrawer) return;
+        e.preventDefault(); isDrawing = true; const pos = getPos(e); 
+        sendDrawData(pos.x, pos.y, true); 
+    }
+    function draw(e) { 
+        if (!isDrawing) return; e.preventDefault(); const pos = getPos(e); 
+        sendDrawData(pos.x, pos.y, false); 
+    }
+    function endDraw(e) { if (isDrawing) { e.preventDefault(); isDrawing = false; } }
+
     let lastX = 0, lastY = 0;
     function executeDrawLine(data) {
         ctx.strokeStyle = data.color; ctx.lineWidth = data.width;

@@ -55,9 +55,11 @@
         canvas { border: 1px solid #eee; border-radius: 5px; width: 100%; height: 100%; max-height: 100%; aspect-ratio: 4/3; cursor: crosshair; object-fit: fill; }
         #canvas-lock-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; display: none; }
         
-        .toolbar { width: 100%; background-color: #fff; border-radius: 10px; padding: 10px; margin-top: 10px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; align-items: center;}
-        .color-btn { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #ccc; cursor: pointer; flex-shrink: 0; }
-        .tool-btn { padding: 8px 15px; background-color: #ecf0f1; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; flex-shrink: 0; }
+        .toolbar { width: 100%; background-color: #fff; border-radius: 10px; padding: 10px; margin-top: 10px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0; align-items: center;}
+        .color-btn { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #ccc; cursor: pointer; flex-shrink: 0; transition: transform 0.1s;}
+        .color-btn:active { transform: scale(0.8); }
+        .tool-btn { padding: 8px 12px; background-color: #ecf0f1; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; flex-shrink: 0; }
+        .eraser-btn { border: 2px solid #bdc3c7; background: #fff; }
 
         .chat-area { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; }
         .chat-messages { flex-grow: 1; padding: 10px; overflow-y: auto; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
@@ -73,7 +75,7 @@
 
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background-color: #fff; padding: 25px; border-radius: 15px; text-align: center; width: 90%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .modal-content input { width: 100%; padding: 12px; font-size: 18px; text-align: center; border: 2px solid #bdc3c7; border-radius: 8px; margin-bottom: 15px; outline: none; }
+        .modal-content input { width: 100%; padding: 12px; font-size: 18px; text-align: center; border: 2px solid #bdc3c7; border-radius: 8px; outline: none; }
         .hidden { display: none !important; }
         
         .result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; font-size: 18px; }
@@ -96,8 +98,8 @@
             .word-hint { font-size: 16px; }
             .canvas-container { flex-grow: 1; height: 0; min-height: 0; }
             .toolbar { padding: 5px; margin-top: 5px; gap: 6px; }
-            .color-btn { width: 26px; height: 26px; }
-            .tool-btn { padding: 6px 12px; font-size: 13px; }
+            .color-btn { width: 24px; height: 24px; }
+            .tool-btn { padding: 6px 10px; font-size: 12px; }
             .chat-area { width: 100%; height: 30%; flex-shrink: 0; }
         }
     </style>
@@ -148,13 +150,21 @@
             <div id="canvas-lock-overlay"></div>
             <canvas id="drawing-board" width="800" height="600"></canvas>
         </div>
+        
         <div class="toolbar" id="game-toolbar">
             <div class="color-btn" style="background: #000000;" onclick="changeColor('#000000')"></div>
+            <div class="color-btn" style="background: #7f8c8d;" onclick="changeColor('#7f8c8d')"></div>
             <div class="color-btn" style="background: #e74c3c;" onclick="changeColor('#e74c3c')"></div>
-            <div class="color-btn" style="background: #3498db;" onclick="changeColor('#3498db')"></div>
+            <div class="color-btn" style="background: #e67e22;" onclick="changeColor('#e67e22')"></div>
             <div class="color-btn" style="background: #f1c40f;" onclick="changeColor('#f1c40f')"></div>
             <div class="color-btn" style="background: #2ecc71;" onclick="changeColor('#2ecc71')"></div>
-            <div class="color-btn" style="background: #ffffff; border-color: #999;" onclick="changeColor('#ffffff')" title="橡皮擦"></div>
+            <div class="color-btn" style="background: #1abc9c;" onclick="changeColor('#1abc9c')"></div>
+            <div class="color-btn" style="background: #3498db;" onclick="changeColor('#3498db')"></div>
+            <div class="color-btn" style="background: #9b59b6;" onclick="changeColor('#9b59b6')"></div>
+            <div class="color-btn" style="background: #fd79a8;" onclick="changeColor('#fd79a8')"></div>
+            <div class="color-btn" style="background: #8b4513;" onclick="changeColor('#8b4513')"></div>
+            
+            <button class="tool-btn eraser-btn" onclick="changeColor('#ffffff')">🧽 橡皮擦</button>
             <button class="tool-btn" onclick="requestClearCanvas()">🗑️ 清空</button>
         </div>
     </div>
@@ -170,10 +180,20 @@
 
 <div id="prompt-modal" class="modal-overlay hidden">
     <div class="modal-content">
-        <h2 style="color:#2980b9;">輪到你出題！</h2>
-        <p>請在 <span id="modal-timer" style="color:#e74c3c; font-weight:bold; font-size: 24px;">30</span> 秒內輸入</p>
-        <input type="text" id="custom-word-input" placeholder="想畫什麼呢？" autocomplete="off">
-        <button class="btn btn-green" onclick="submitWord()">確認出題</button>
+        <h2 style="color:#2980b9; margin-bottom:10px;">輪到你出題！</h2>
+        <p style="margin-bottom:15px; color:#555;">請在 <span id="modal-timer" style="color:#e74c3c; font-weight:bold; font-size: 22px;">30</span> 秒內選擇或輸入</p>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <button class="btn btn-blue" id="btn-choice-1" onclick="submitWord(this.innerText)">選項 1</button>
+            <button class="btn btn-blue" id="btn-choice-2" onclick="submitWord(this.innerText)">選項 2</button>
+        </div>
+        
+        <div style="margin: 15px 0; color: #7f8c8d; font-size: 14px; font-weight: bold;">—— ✏️ 或自行輸入你想畫的 ——</div>
+        
+        <div style="display: flex; gap: 5px;">
+            <input type="text" id="custom-word-input" placeholder="自訂題目..." autocomplete="off" style="margin-bottom: 0;">
+            <button class="btn btn-green" style="width: 80px; margin-bottom: 0; flex-shrink: 0;" onclick="submitCustomWord()">確定</button>
+        </div>
     </div>
 </div>
 
@@ -186,12 +206,11 @@
 </div>
 
 <script>
-    // 🔗 【關鍵設定】把下方換成你在 Render 部署成功的後端網址
     const SERVER_URL = "https://my-gartic-server.onrender.com"; 
 
     let socket = null; let myId = ""; let myName = ""; let isHost = false;
     let players = []; 
-    let gameState = { status: 'LOBBY', drawerIndex: 0, currentRound: 1, maxRounds: 3, currentWord: "", timeLeft: 60, drawTime: 60, isPlaying: false };
+    let gameState = { status: 'LOBBY', drawerIndex: 0, currentRound: 1, maxRounds: 3, currentWord: "", timeLeft: 60, drawTime: 60, isPlaying: false, usedWords: [] };
     let gameTimerInterval = null; let promptInterval = null;
     let currentRoomCode = "";
     
@@ -201,7 +220,16 @@
         localStorage.setItem('gartic_session_id', mySessionId);
     }
 
-    const autoWordBank = ["蘋果", "香蕉", "貓咪", "狗狗", "汽車", "火車", "電腦", "時鐘", "皮卡丘", "大象", "飛機", "漢堡", "珍奶", "雨傘", "西瓜"];
+    const autoWordBank = [
+        "蘋果", "香蕉", "貓咪", "狗狗", "汽車", "火車", "電腦", "時鐘", "皮卡丘", "大象",
+        "飛機", "漢堡", "珍奶", "雨傘", "西瓜", "企鵝", "長頸鹿", "烏龜", "剪刀", "手機",
+        "電視", "吉他", "鋼琴", "籃球", "棒球", "腳踏車", "火箭", "外星人", "鬼魂", "南瓜",
+        "雪人", "聖誕樹", "太陽", "月亮", "星星", "彩虹", "火山", "颱風", "冰淇淋", "蛋糕",
+        "薯條", "披薩", "壽司", "火鍋", "甜甜圈", "蝴蝶", "蜜蜂", "蜘蛛", "螃蟹", "蝸牛",
+        "章魚", "海豚", "鯨魚", "美人魚", "獨角獸", "恐龍", "城堡", "公主", "國王", "警察",
+        "醫生", "護士", "老師", "消防員", "眼鏡", "手錶", "戒指", "鑽石", "鑰匙", "背包",
+        "牙刷", "馬桶", "沙發", "電風扇", "冷氣", "麥克風", "耳機", "剪草機", "望遠鏡", "鞋子"
+    ];
 
     function initApp() {
         document.body.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
@@ -307,7 +335,11 @@
         else if (data.type === 'chat') handleChatAttempt(data.clientId, data.text);
         else if (data.type === 'draw') { sendHostBroadcast(data); executeDrawLine(data); }
         else if (data.type === 'clear_canvas') { sendHostBroadcast({ type: 'clear_canvas', senderId: data.senderId }); clearCanvasLocal(); }
-        else if (data.type === 'submit_word') { gameState.currentWord = data.word; startGameTimer(); }
+        else if (data.type === 'submit_word') { 
+            gameState.currentWord = data.word; 
+            gameState.usedWords.push(data.word); 
+            startGameTimer(); 
+        }
     }
     
     function handlePlayerDrop(droppedId) {
@@ -371,9 +403,9 @@
         sendHostBroadcast({ type: 'chat', sender: '系統', text: `▼ 輪到【${currentDrawer.name}】出題！`, msgType: 'system' });
         updatePlayersUI();
 
-        if (currentDrawer.id === myId) openPromptModal();
+        if (currentDrawer.id === myId) openPromptModal(gameState.usedWords);
         else {
-            sendHostBroadcast({ type: 'prompt_request', targetId: currentDrawer.id });
+            sendHostBroadcast({ type: 'prompt_request', targetId: currentDrawer.id, usedWords: gameState.usedWords });
             sendHostBroadcast({ type: 'sync_word', text: "等待出題..." });
             document.getElementById('word-display').innerText = "等待出題...";
         }
@@ -436,11 +468,8 @@
         }
     }
 
-    // ==========================================
-    // ⚠️ 核心防呆機制：過濾多餘的回音 (Echo)
-    // ==========================================
     function handleDataFromHost(data) {
-        if (isHost) return; // 房主自己就是發送源，不需要處理任何伺服器廣播回來給自己的東西
+        if (isHost) return; 
         
         if (data.type === 'sync_players') {
             players = data.players; updatePlayersUI();
@@ -459,7 +488,6 @@
         }
         else if (data.type === 'sync_time') document.getElementById('game-timer').innerText = data.time;
         else if (data.type === 'draw') {
-            // 【防蜘蛛網核心】如果這條線是我自己畫出去的，忽略它！
             if (data.senderId === myId) return; 
             executeDrawLine(data);
         }
@@ -467,7 +495,9 @@
             if (data.senderId === myId) return; 
             clearCanvasLocal(); 
         }
-        else if (data.type === 'prompt_request') { if (data.targetId === myId) openPromptModal(); }
+        else if (data.type === 'prompt_request') { 
+            if (data.targetId === myId) openPromptModal(data.usedWords); 
+        }
         else if (data.type === 'score_anim') showScoreAnim(data.targetId, data.points);
         else if (data.type === 'kicked') { alert("你已被房主踢除！"); location.href = window.location.href.split('?')[0]; }
         else if (data.type === 'sync_canvas') {
@@ -528,28 +558,50 @@
         document.getElementById('game-toolbar').style.opacity = locked ? '0.3' : '1';
     }
 
-    function openPromptModal() {
+    // 【新增】雙選擇題庫與自訂題目介面邏輯
+    let currentChoices = [];
+    function openPromptModal(usedWords = []) {
         document.getElementById('prompt-modal').classList.remove('hidden');
         document.getElementById('custom-word-input').value = "";
         let timeLeft = 30; document.getElementById('modal-timer').innerText = timeLeft;
         
+        // 過濾掉已經出現過的題目，確保絕不重複
+        let availableWords = autoWordBank.filter(w => !usedWords.includes(w));
+        if (availableWords.length < 2) availableWords = autoWordBank; // 如果真的玩了 80 局沒題庫了，再重新洗牌
+        
+        // 隨機抽取兩個不同的詞彙
+        availableWords.sort(() => 0.5 - Math.random());
+        currentChoices = [availableWords[0], availableWords[1]];
+        
+        document.getElementById('btn-choice-1').innerText = currentChoices[0];
+        document.getElementById('btn-choice-2').innerText = currentChoices[1];
+        
         promptInterval = setInterval(() => {
             timeLeft--; document.getElementById('modal-timer').innerText = timeLeft;
             if (timeLeft <= 0) {
-                let randomWord = autoWordBank[Math.floor(Math.random() * autoWordBank.length)];
-                document.getElementById('custom-word-input').value = randomWord; 
-                submitWord(); 
+                submitWord(currentChoices[0]); // 時間到，自動選擇第一個選項
             }
         }, 1000);
     }
     
-    function submitWord() {
-        let word = document.getElementById('custom-word-input').value.trim();
-        if (!word) { alert('請輸入你想畫的題目！'); return; } 
-        clearInterval(promptInterval); document.getElementById('prompt-modal').classList.add('hidden');
+    function submitCustomWord() {
+        let w = document.getElementById('custom-word-input').value.trim();
+        if (!w) { alert('請輸入你想畫的題目！'); return; }
+        submitWord(w);
+    }
+    
+    function submitWord(word) {
+        clearInterval(promptInterval); 
+        document.getElementById('prompt-modal').classList.add('hidden');
         document.getElementById('word-display').innerText = `${word} (你作畫)`;
-        if (isHost) { gameState.currentWord = word; startGameTimer(); }
-        else { socket.emit('send_to_host', { type: 'submit_word', word: word }); }
+        
+        if (isHost) { 
+            gameState.currentWord = word; 
+            gameState.usedWords.push(word); 
+            startGameTimer(); 
+        } else { 
+            socket.emit('send_to_host', { type: 'submit_word', word: word }); 
+        }
     }
     
     function handleChatKey(e) { if (e.key === 'Enter') submitChat(); }
@@ -567,7 +619,10 @@
     let isDrawing = false; let currentColor = '#000000'; let currentLineWidth = 5;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-    function changeColor(color) { currentColor = color; currentLineWidth = (color === '#ffffff') ? 30 : 5; }
+    function changeColor(color) { 
+        currentColor = color; 
+        currentLineWidth = (color === '#ffffff') ? 35 : 5; // 如果選擇白色(橡皮擦)，筆刷變超粗
+    }
     
     function requestClearCanvas() {
         let myPlayer = players.find(p => p.id === myId); if(!myPlayer || !myPlayer.isDrawer) return;
@@ -589,7 +644,6 @@
         executeDrawLine({ x, y, color: currentColor, width: currentLineWidth, isStart });
         let now = Date.now();
         if (isStart || now - lastSendTime > 20) { 
-            // 【防蜘蛛網核心】在此為這包資料打上你的專屬 ID 標籤 (senderId)
             let data = { type: 'draw', x, y, color: currentColor, width: currentLineWidth, isStart, senderId: myId };
             if (isHost) sendHostBroadcast(data); 
             else if (socket) socket.emit('send_to_host', data);
